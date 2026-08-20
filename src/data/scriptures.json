@@ -1,0 +1,32 @@
+[
+  {
+    "id": "john-3-16",
+    "reference": "John 3:16",
+    "title": "John 3:16",
+    "text": "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life."
+  },
+  {
+    "id": "psalm-23-1-6",
+    "reference": "Psalm 23:1-6",
+    "title": "Psalm 23:1-6",
+    "text": "The LORD is my shepherd; I shall not want. He maketh me to lie down in green pastures: he leadeth me beside the still waters. He restoreth my soul: he leadeth me in the paths of righteousness for his name's sake. Yea, though I walk through the valley of the shadow of death, I will fear no evil: for thou art with me; thy rod and thy staff they comfort me. Thou preparest a table before me in the presence of mine enemies: thou anointest my head with oil; my cup runneth over. Surely goodness and mercy shall follow me all the days of my life: and I will dwell in the house of the LORD for ever."
+  },
+  {
+    "id": "romans-8-28",
+    "reference": "Romans 8:28",
+    "title": "Romans 8:28",
+    "text": "And we know that all things work together for good to them that love God, to them who are the called according to his purpose."
+  },
+  {
+    "id": "philippians-4-13",
+    "reference": "Philippians 4:13",
+    "title": "Philippians 4:13",
+    "text": "I can do all things through Christ which strengtheneth me."
+  },
+  {
+    "id": "proverbs-3-5-6",
+    "reference": "Proverbs 3:5-6",
+    "title": "Proverbs 3:5-6",
+    "text": "Trust in the LORD with all thine heart; and lean not unto thine own understanding. In all thy ways acknowledge him, and he shall direct thy paths."
+  }
+]

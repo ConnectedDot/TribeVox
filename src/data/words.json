@@ -1,0 +1,12 @@
+[
+  {"id":"accommodate","word":"accommodate","category":"General","hint":"to provide room or adapt"},
+  {"id":"conscientious","word":"conscientious","category":"Advanced","hint":"careful and responsible"},
+  {"id":"entrepreneur","word":"entrepreneur","category":"Advanced","hint":"a person who starts a business"},
+  {"id":"rhythm","word":"rhythm","category":"General","hint":"a repeated pattern of sound or movement"},
+  {"id":"miscellaneous","word":"miscellaneous","category":"Advanced","hint":"made up of varied items"},
+  {"id":"privilege","word":"privilege","category":"General","hint":"a special right or advantage"},
+  {"id":"questionnaire","word":"questionnaire","category":"Advanced","hint":"a written set of questions"},
+  {"id":"separate","word":"separate","category":"General","hint":"to divide or keep apart"},
+  {"id":"necessary","word":"necessary","category":"General","hint":"required or essential"},
+  {"id":"embarrassment","word":"embarrassment","category":"Advanced","hint":"a feeling of self-conscious discomfort"}
+]
