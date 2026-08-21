@@ -1,7 +1,7 @@
 {
   "name": "tribevox-live-voice-engine",
   "private": true,
-  "version": "4.0.0",
+  "version": "5.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,9 @@
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "@elevenlabs/react": "latest",
+    "@elevenlabs/elevenlabs-js": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",

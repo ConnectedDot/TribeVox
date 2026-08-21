@@ -1,3 +1,22 @@
+# TribeVox V5 — ElevenLabs Recognition Studio
+
+V5 upgrades TribeVox from browser Web Speech recognition to **ElevenLabs Scribe v2 Realtime**, while retaining the custom TribeVox recognition-intelligence and scoring layer. Spelling pronunciation now uses **Eleven Flash v2.5** through a protected server endpoint.
+
+> Important: configure `ELEVENLABS_API_KEY` server-side. Do not expose a permanent ElevenLabs key in React. See `ELEVENLABS_V5_IMPLEMENTATION.md`.
+
+## V5 quick start
+
+```bash
+npm install
+npx vercel dev
+```
+
+For Vercel deployment, add `ELEVENLABS_API_KEY` to the project environment and redeploy.
+
+---
+
+## Previous project documentation
+
 # TribeVox — Live Voice Engine (V3)
 
 A standalone, browser-first live speech console for the vocal events of the Twelve Tribes Family Games. V3 concentrates on operator usability, polished control/backdrop UI, local catalogue management, browser speech recognition, spelling pronunciation controls, and safe one-person operation without authentication or external APIs.
@@ -121,3 +140,12 @@ The Web Speech API does not accept a custom Web Audio stream, so the application
 ### V4 dry-run cases
 
 Test at minimum: clean continuous recitation; scripture reference before each verse; 5–10 second pauses; `for, for, for God...` stutters; repeated phrases; one/two/five skipped words; a wrong substituted word followed by correct continuation; self-correction; background speech before the participant begins; intermittent room noise mid-verse; browser recognition ending/restarting; and spelling with `double`, `undo`, and `restart` commands. Compare en-NG, en-GB and en-US on the same microphone and participant.
+
+## V5.1 calibration fixes
+
+- Studio grid now truly reallocates width when either side rail is collapsed.
+- Spelling normalization now understands Scribe outputs such as `A-C-C-O-M-M-O-D-A-T-E`, spaced letters, letter names, double-letter commands, undo/correction and short compact letter runs.
+- The latency tile now measures commit settle time (last partial transcript to committed transcript) rather than the misleading first-partial-to-final duration.
+- Realtime VAD is tuned more aggressively for competition use (`0.48s` silence threshold, `0.4` VAD threshold).
+- Backdrop transport now combines BroadcastChannel with persisted localStorage recovery for much more reliable same-device tabs and refreshes. Cross-device backdrop synchronization still requires a realtime backend transport.
+- ElevenLabs usage metrics require the API key to include **User → Read** permission. STT/TTS can still work when that monitoring permission is missing.

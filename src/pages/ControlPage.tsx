@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  AudioLines, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, Download, ExternalLink,
-  FileUp, Gauge, Headphones, LibraryBig, Mic, MicOff, Moon, Pencil, Plus, RotateCcw,
-  Search, Settings2, Sparkles, SpellCheck2, Sun, Trash2, Volume2, Waves, X, ShieldCheck, UserRoundPlus, Radio, Activity
+  Activity, AudioLines, BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp,
+  Download, ExternalLink, FileUp, Gauge, Headphones, LibraryBig, Mic, MicOff, Moon,
+  Pencil, Plus, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck, Sparkles,
+  SpellCheck2, Sun, Trash2, UserRoundPlus, Volume2, Waves, X
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis";
+import { useElevenLabsRecognition } from "../hooks/useElevenLabsRecognition";
+import { useElevenLabsTTS } from "../hooks/useElevenLabsTTS";
+import { useElevenLabsMetrics } from "../hooks/useElevenLabsMetrics";
 import { useDisplayPublisher } from "../hooks/useDisplayChannel";
 import { useCatalogStore } from "../hooks/useCatalogStore";
 import { accuracy, progress } from "../recognition/scoring";
 import { matchRecitation } from "../recognition/RecitationMatcher";
 import { matchSpelling } from "../recognition/SpellingMatcher";
-import { useAudioMonitor } from "../hooks/useAudioMonitor";
 import type { Mode, Theme } from "../types/speech";
 import type { ScriptureItem, WordItem } from "../types/catalog";
 
@@ -21,60 +22,47 @@ type RecitationDraft = { title: string; reference: string; expected: string; sou
 type SpellingDraft = { title: string; reference: string; expected: string; sourceId?: string };
 type EditorState = { mode: Mode; kind: "add" | "edit"; id?: string } | null;
 
-const recognitionLocales = [
-  { value: "en-NG", label: "English · Nigeria", short: "NG" },
-  { value: "en-GB", label: "English · United Kingdom", short: "UK" },
-  { value: "en-US", label: "English · United States", short: "US" },
-  { value: "en-ZA", label: "English · South Africa", short: "ZA" },
-];
-
 export default function ControlPage() {
   const catalogue = useCatalogStore();
   const firstScripture = catalogue.scriptures[0] || { id: "", reference: "", title: "Bible Recitation", text: "" };
   const firstWord = catalogue.words[0] || { id: "", word: "", category: "General", hint: "" };
   const [mode, setMode] = useState<Mode>("recitation");
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("tribevox.theme") as Theme) || "light");
-  const [recognitionLang, setRecognitionLang] = useState(() => localStorage.getItem("tribevox.recognition.lang") || "en-NG");
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("tribevox.theme") as Theme) || "dark");
   const [recitation, setRecitation] = useState<RecitationDraft>({ title: "Bible Recitation", reference: firstScripture.reference, expected: firstScripture.text, sourceId: firstScripture.id });
   const [spelling, setSpelling] = useState<SpellingDraft>({ title: "Spelling Bee", reference: firstWord.category, expected: firstWord.word, sourceId: firstWord.id });
   const [query, setQuery] = useState("");
   const [catalogOpen, setCatalogOpen] = useState(true);
+  const [insightsOpen, setInsightsOpen] = useState(true);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState>(null);
   const [importError, setImportError] = useState("");
-  const [confidenceThreshold, setConfidenceThreshold] = useState(() => Number(localStorage.getItem("tribevox.confidence") || .35));
-  const [noiseGuard, setNoiseGuard] = useState(() => localStorage.getItem("tribevox.noiseGuard") !== "false");
   const [turn, setTurn] = useState(1);
   const importRef = useRef<HTMLInputElement>(null);
 
-  const speech = useSpeechRecognition(recognitionLang, { confidenceThreshold });
-  const audio = useAudioMonitor(noiseGuard && speech.listening);
-  const tts = useSpeechSynthesis();
+  const speech = useElevenLabsRecognition();
+  const tts = useElevenLabsTTS();
+  const usage = useElevenLabsMetrics();
   const publish = useDisplayPublisher();
   const current = mode === "recitation" ? recitation : spelling;
   const combined = `${speech.finalText} ${speech.interim}`.trim();
 
   const intelligence = useMemo(() => mode === "recitation"
-    ? matchRecitation(current.expected, combined, current.reference, { interim: Boolean(speech.interim), skipTolerance: 6, recoveryLookahead: 4 })
+    ? matchRecitation(current.expected, combined, current.reference, { interim: Boolean(speech.interim), skipTolerance: 6, recoveryLookahead: 5 })
     : matchSpelling(current.expected, combined, Boolean(speech.interim)),
     [mode, current.expected, current.reference, combined, speech.interim]
   );
   const tokens = intelligence.tokens;
   const score = accuracy(tokens);
   const completion = progress(tokens);
-  const confidencePct = speech.confidence == null ? null : Math.round(speech.confidence * 100);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("tribevox.theme", theme);
   }, [theme]);
-  useEffect(() => { localStorage.setItem("tribevox.recognition.lang", recognitionLang); }, [recognitionLang]);
-  useEffect(() => { localStorage.setItem("tribevox.confidence", String(confidenceThreshold)); }, [confidenceThreshold]);
-  useEffect(() => { localStorage.setItem("tribevox.noiseGuard", String(noiseGuard)); }, [noiseGuard]);
 
   useEffect(() => {
-    publish({ mode, title: current.title, reference: current.reference, expected: current.expected, transcript: speech.finalText, interim: speech.interim, accuracy: score, progress: completion, confidence: confidencePct ?? undefined, listening: speech.listening, tokens, intelligence: intelligence.metrics, turn, updatedAt: Date.now() });
-  }, [mode, current.title, current.reference, current.expected, speech.finalText, speech.interim, score, completion, confidencePct, speech.listening, tokens, intelligence.metrics, turn, publish]);
+    publish({ mode, title: current.title, reference: current.reference, expected: current.expected, transcript: speech.finalText, interim: speech.interim, accuracy: score, progress: completion, listening: speech.listening, tokens, intelligence: intelligence.metrics, turn, updatedAt: Date.now() });
+  }, [mode, current.title, current.reference, current.expected, speech.finalText, speech.interim, score, completion, speech.listening, tokens, intelligence.metrics, turn, publish]);
 
   const switchMode = (next: Mode) => {
     if (next === mode) return;
@@ -92,206 +80,126 @@ export default function ControlPage() {
     return catalogue.words.filter(item => !q || `${item.word} ${item.category} ${item.hint}`.toLowerCase().includes(q));
   }, [query, catalogue.words]);
 
-  const chooseScripture = (item: ScriptureItem) => {
-    speech.stop(); speech.reset();
-    setRecitation({ title: "Bible Recitation", reference: item.reference, expected: item.text, sourceId: item.id });
-  };
-  const chooseWord = (item: WordItem) => {
-    speech.stop(); speech.reset();
-    setSpelling({ title: "Spelling Bee", reference: item.category, expected: item.word, sourceId: item.id });
-  };
-
-  const editCurrent = () => {
-    const id = current.sourceId;
-    if (id) setEditor({ mode, kind: "edit", id });
-    else setEditor({ mode, kind: "add" });
-  };
+  const chooseScripture = (item: ScriptureItem) => { speech.stop(); speech.reset(); setRecitation({ title: "Bible Recitation", reference: item.reference, expected: item.text, sourceId: item.id }); };
+  const chooseWord = (item: WordItem) => { speech.stop(); speech.reset(); setSpelling({ title: "Spelling Bee", reference: item.category, expected: item.word, sourceId: item.id }); };
+  const editCurrent = () => setEditor(current.sourceId ? { mode, kind: "edit", id: current.sourceId } : { mode, kind: "add" });
 
   const removeItem = (itemMode: Mode, id: string) => {
     if (!window.confirm(`Delete this ${itemMode === "recitation" ? "scripture" : "spelling word"} from your local catalogue?`)) return;
-    if (itemMode === "recitation") {
-      catalogue.deleteScripture(id);
-      if (recitation.sourceId === id) setRecitation({ title: "Bible Recitation", reference: "", expected: "" });
-    } else {
-      catalogue.deleteWord(id);
-      if (spelling.sourceId === id) setSpelling({ title: "Spelling Bee", reference: "", expected: "" });
-    }
+    if (itemMode === "recitation") { catalogue.deleteScripture(id); if (recitation.sourceId === id) setRecitation({ title: "Bible Recitation", reference: "", expected: "" }); }
+    else { catalogue.deleteWord(id); if (spelling.sourceId === id) setSpelling({ title: "Spelling Bee", reference: "", expected: "" }); }
     speech.reset();
   };
 
   const handleImport = async (file?: File) => {
-    if (!file) return;
-    setImportError("");
-    try { await catalogue.importJson(file); }
-    catch (e) { setImportError(e instanceof Error ? e.message : "Could not import catalogue."); }
+    if (!file) return; setImportError("");
+    try { await catalogue.importJson(file); } catch (e) { setImportError(e instanceof Error ? e.message : "Could not import catalogue."); }
     if (importRef.current) importRef.current.value = "";
   };
 
-  const currentLocale = recognitionLocales.find(x => x.value === recognitionLang) || recognitionLocales[0];
-  const selectedVoice = tts.voices.find(v => v.name === tts.voiceName);
+  const usageReset = usage.data?.resetAt ? new Date(usage.data.resetAt).toLocaleDateString(undefined, { day:"numeric", month:"short" }) : "—";
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark"><AudioLines size={20}/></span>
-          <div><strong>TribeVox</strong><small>Live voice engine</small></div>
-        </div>
-        <div className="top-actions">
-          <div className="mode-switch" aria-label="Mode">
-            <button className={mode === "recitation" ? "active" : ""} onClick={() => switchMode("recitation")}><BookOpenText size={16}/> Recitation</button>
-            <button className={mode === "spelling" ? "active" : ""} onClick={() => switchMode("spelling")}><SpellCheck2 size={16}/> Spelling</button>
-          </div>
-          <button className="icon-btn" title="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button>
-          <Link className="btn display-btn" to="/display" target="_blank"><ExternalLink size={16}/> Backdrop</Link>
+    <div className="v5-shell">
+      <header className="v5-topbar">
+        <div className="v5-brand"><span className="v5-brandmark"><AudioLines size={18}/></span><strong>TribeVox</strong><span className="version-chip">V5</span></div>
+        <div className="v5-search"><Search size={15}/><span>Recognition studio</span><kbd>⌘ K</kbd></div>
+        <div className="v5-top-actions">
+          <div className="engine-pill"><i className={speech.listening ? "live" : ""}/><span>Scribe v2 Realtime</span></div>
+          <button className="v5-icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">{theme === "dark" ? <Sun size={17}/> : <Moon size={17}/>}</button>
+          <Link className="v5-btn compact" to="/display" target="_blank"><ExternalLink size={15}/> Backdrop</Link>
         </div>
       </header>
 
-      <main className="workspace">
-        <section className="command-hero">
-          <div className="hero-main">
-            <span className="eyebrow"><Sparkles size={14}/> Twelve Tribes Family Games · vocal operations</span>
-            <h1>Recognition that <em>keeps its place.</em></h1>
-            <p>V4 intelligence tracks the participant through pauses, repetitions, stutters, skipped words, verse transitions and browser recognition restarts without losing the expected sequence.</p>
+      <div className={`v5-layout ${catalogOpen ? "library-open" : "library-closed"} ${insightsOpen ? "insights-open" : "insights-closed"}`}>
+        <aside className={`v5-sidebar ${catalogOpen ? "" : "rail"}`}>
+          <div className="side-section">
+            <span className="side-caption">Studio</span>
+            <button className={`side-link ${mode === "recitation" ? "active" : ""}`} onClick={() => switchMode("recitation")}><BookOpenText size={17}/>{catalogOpen && <span>Recitation</span>}</button>
+            <button className={`side-link ${mode === "spelling" ? "active" : ""}`} onClick={() => switchMode("spelling")}><SpellCheck2 size={17}/>{catalogOpen && <span>Spelling</span>}</button>
           </div>
-          <div className="hero-status-card">
-            <span className="status-orb"><Waves size={22}/></span>
-            <div><small>Recognition intelligence · V4</small><strong>{speech.supported ? "Engine ready" : "Unavailable"}</strong><span>{currentLocale.label} · Turn {turn} · {catalogue.scriptures.length + catalogue.words.length} items</span></div>
-          </div>
-        </section>
-
-        <section className={`console-grid ${catalogOpen ? "" : "library-closed"}`}>
-          <aside className={`catalog panel ${catalogOpen ? "" : "collapsed"}`}>
-            <div className="panel-head">
-              {catalogOpen ? <div className="panel-title"><span className="soft-icon"><LibraryBig size={18}/></span><div><span className="section-kicker">Session library</span><h2>{mode === "recitation" ? "Scriptures" : "Spelling words"}</h2></div></div> : null}
-              <button className="collapse-handle" title={catalogOpen ? "Collapse library" : "Open library"} onClick={() => setCatalogOpen(v => !v)}>
-                {catalogOpen ? <ChevronLeft size={18}/> : <><LibraryBig size={18}/><ChevronRight size={16}/></>}
-              </button>
-            </div>
-
+          <div className="side-section library-section">
+            <div className="side-section-head">{catalogOpen && <span className="side-caption">Library</span>}<button onClick={()=>setCatalogOpen(v=>!v)} title={catalogOpen?"Collapse library":"Expand library"}>{catalogOpen?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}</button></div>
             {catalogOpen && <>
-              <div className="library-actions">
-                <button className="btn accent-soft" onClick={() => setEditor({ mode, kind: "add" })}><Plus size={16}/> Add {mode === "recitation" ? "scripture" : "word"}</button>
-                <button className="icon-btn compact" title="Import catalogue JSON" onClick={() => importRef.current?.click()}><FileUp size={16}/></button>
-                <button className="icon-btn compact" title="Export catalogue JSON" onClick={catalogue.exportJson}><Download size={16}/></button>
-                <input ref={importRef} type="file" hidden accept="application/json,.json" onChange={e => handleImport(e.target.files?.[0])}/>
+              <div className="library-toolbar"><button onClick={() => setEditor({mode,kind:"add"})}><Plus size={15}/> Add</button><button onClick={()=>importRef.current?.click()} title="Import JSON"><FileUp size={15}/></button><button onClick={catalogue.exportJson} title="Export JSON"><Download size={15}/></button><input ref={importRef} hidden type="file" accept="application/json,.json" onChange={e=>handleImport(e.target.files?.[0])}/></div>
+              {importError && <div className="side-error">{importError}</div>}
+              <div className="side-search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={mode === "recitation" ? "Find scripture…" : "Find word…"}/></div>
+              <div className="v5-library-list">
+                {mode === "recitation" ? filteredScriptures.map(item => <div key={item.id} className={`v5-library-item ${current.sourceId===item.id?"selected":""}`}>
+                  <button className="library-main" onClick={()=>chooseScripture(item)}><span>{item.reference}</span><small>{item.text.slice(0,62)}{item.text.length>62?"…":""}</small></button><div><button onClick={()=>setEditor({mode:"recitation",kind:"edit",id:item.id})}><Pencil size={13}/></button><button onClick={()=>removeItem("recitation",item.id)}><Trash2 size={13}/></button></div>
+                </div>) : filteredWords.map(item => <div key={item.id} className={`v5-library-item ${current.sourceId===item.id?"selected":""}`}>
+                  <button className="library-main" onClick={()=>chooseWord(item)}><span>{item.word}</span><small>{item.category} · {item.hint}</small></button><div><button onClick={()=>setEditor({mode:"spelling",kind:"edit",id:item.id})}><Pencil size={13}/></button><button onClick={()=>removeItem("spelling",item.id)}><Trash2 size={13}/></button></div>
+                </div>)}
               </div>
-              {importError && <div className="inline-error">{importError}</div>}
-              <div className="search-box"><Search size={16}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={mode === "recitation" ? "Search reference or verse…" : "Search word or category…"}/></div>
-              <div className="catalog-list">
-                <AnimatePresence mode="popLayout">
-                  {mode === "recitation" ? filteredScriptures.map(item => (
-                    <motion.div layout initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0}} key={item.id} className={`catalog-row ${current.sourceId === item.id ? "selected" : ""}`}>
-                      <button className="catalog-item" onClick={() => chooseScripture(item)}>
-                        <span className="catalog-icon"><BookOpenText size={16}/></span><span><strong>{item.reference}</strong><small>{item.text.slice(0, 76)}{item.text.length > 76 ? "…" : ""}</small></span>
-                      </button>
-                      <div className="row-tools"><button title="Edit" onClick={() => setEditor({ mode: "recitation", kind: "edit", id: item.id })}><Pencil size={14}/></button><button title="Delete" onClick={() => removeItem("recitation", item.id)}><Trash2 size={14}/></button></div>
-                    </motion.div>
-                  )) : filteredWords.map(item => (
-                    <motion.div layout initial={{opacity:0,y:4}} animate={{opacity:1,y:0}} exit={{opacity:0}} key={item.id} className={`catalog-row ${current.sourceId === item.id ? "selected" : ""}`}>
-                      <button className="catalog-item" onClick={() => chooseWord(item)}>
-                        <span className="catalog-icon"><SpellCheck2 size={16}/></span><span><strong>{item.word}</strong><small>{item.category} · {item.hint}</small></span>
-                      </button>
-                      <div className="row-tools"><button title="Edit" onClick={() => setEditor({ mode: "spelling", kind: "edit", id: item.id })}><Pencil size={14}/></button><button title="Delete" onClick={() => removeItem("spelling", item.id)}><Trash2 size={14}/></button></div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-              <div className="library-foot"><span><Gauge size={14}/> Persistent local JSON store</span><button onClick={catalogue.resetToSeed}>Restore seed data</button></div>
+              <button className="restore-link" onClick={catalogue.resetToSeed}><RotateCcw size={13}/> Restore seed catalogue</button>
             </>}
-          </aside>
+          </div>
+        </aside>
 
-          <section className="session panel">
-            <div className="session-head">
-              <div className="session-title-wrap">
-                <span className="session-icon">{mode === "recitation" ? <BookOpenText size={21}/> : <SpellCheck2 size={21}/>}</span>
-                <div><span className="section-kicker">Live session</span><h2>{current.title}</h2><p>{speech.supported ? `${currentLocale.label} recognition is ready.` : "Speech recognition is not available in this browser."}</p></div>
-              </div>
-              <div className="session-actions">
-                <button className="btn ghost" onClick={resetSession}><RotateCcw size={16}/> Reset attempt</button>
-                <button className="btn ghost warm" onClick={nextParticipant}><UserRoundPlus size={16}/> New participant</button>
-                <button className={speech.listening ? "btn stop" : "btn primary"} disabled={!speech.supported} onClick={speech.listening ? speech.stop : speech.start}>
-                  {speech.listening ? <MicOff size={17}/> : <Mic size={17}/>} {speech.listening ? "Stop listening" : "Start listening"}
-                </button>
-              </div>
-            </div>
-
-            <div className="metrics-row intelligence-metrics">
-              <div className="metric"><span>Recitation accuracy</span><strong>{score}%</strong><div className="meter"><i style={{width:`${score}%`}}/></div><small>{score >= 95 ? "Strong sequence match" : score ? "Live authoritative score" : "Awaiting attempt"}</small></div>
-              <div className="metric"><span>Sequence progress</span><strong>{completion}%</strong><div className="meter"><i style={{width:`${completion}%`}}/></div><small>{mode === "recitation" && intelligence.metrics.currentVerse ? `Tracking verse ${intelligence.metrics.currentVerse}` : completion === 100 ? "Sequence complete" : "Position locked"}</small></div>
-              <div className="metric"><span>Speech confidence</span><strong>{confidencePct == null ? "—" : `${confidencePct}%`}</strong><div className="meter confidence"><i style={{width:`${confidencePct || 0}%`}}/></div><small>{speech.rejectedLowConfidence ? `${speech.rejectedLowConfidence} low-confidence result(s) gated` : "Unknown confidence is never auto-rejected"}</small></div>
-              <div className="metric status"><span>Engine state</span><strong><i className={speech.listening ? "live-dot" : "idle-dot"}/>{speech.listening ? "Tracking" : completion === 100 ? "Complete" : "Ready"}</strong><small>{speech.restartCount ? `${speech.restartCount} automatic recognition recovery` : "Automatic restart armed"}</small></div>
-            </div>
-            <div className="intelligence-strip">
-              <span><ShieldCheck size={15}/><b>{intelligence.metrics.ignoredRepetitions}</b> repetitions/stutters ignored</span>
-              <span><Radio size={15}/><b>{intelligence.metrics.ignoredNoise}</b> filler/noise insertions ignored</span>
-              <span><Activity size={15}/><b>{intelligence.metrics.recoveries}</b> sequence recoveries</span>
-              <span><Gauge size={15}/><b>{intelligence.metrics.skippedWords}</b> skipped words detected</span>
-            </div>
-
-            <div className="control-strip v4-controls">
-              <label><span>Recognition accent</span><select value={recognitionLang} onChange={e => { speech.stop(); speech.reset(); setRecognitionLang(e.target.value); }}>{recognitionLocales.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}</select></label>
-              <label className="threshold-control"><span>Confidence gate <b>{Math.round(confidenceThreshold*100)}%</b></span><input type="range" min="0" max="0.8" step="0.05" value={confidenceThreshold} onChange={e=>setConfidenceThreshold(Number(e.target.value))}/></label>
-              <button className={`btn voice-settings ${noiseGuard ? "active" : ""}`} onClick={()=>setNoiseGuard(v=>!v)}><ShieldCheck size={16}/> Noise guard {noiseGuard ? "on" : "off"}</button>
-              {mode === "spelling" && <button className={`btn voice-settings ${voiceOpen ? "active" : ""}`} onClick={() => setVoiceOpen(v => !v)}><Settings2 size={16}/> Voice lab</button>}
-            </div>
-            <div className="audio-health">
-              <div><span>Mic activity</span><div className="audio-meter"><i style={{width:`${audio.level}%`}}/></div><b>{audio.level}%</b></div>
-              <div><span>Estimated room floor</span><div className="audio-meter quiet"><i style={{width:`${audio.noiseFloor}%`}}/></div><b>{audio.noiseFloor}%</b></div>
-              <p><CircleHelp size={14}/> Noise guard requests browser echo cancellation, noise suppression and automatic gain control, then the V4 matcher ignores likely filler/repetition insertions. Web Speech still controls its own microphone processing.</p>
-            </div>
-
-            <AnimatePresence initial={false}>
-              {mode === "spelling" && voiceOpen && <motion.div className="voice-lab" initial={{height:0,opacity:0}} animate={{height:"auto",opacity:1}} exit={{height:0,opacity:0}}>
-                <div className="voice-lab-head"><span className="soft-icon violet"><Headphones size={18}/></span><div><strong>Pronunciation voice lab</strong><small>Controls apply to browser text-to-speech only.</small></div></div>
-                <div className="voice-grid">
-                  <label><span>Voice model</span><select value={tts.voiceName} onChange={e => tts.setVoiceName(e.target.value)}>{tts.voices.length ? tts.voices.map(v => <option key={`${v.name}-${v.lang}`} value={v.name}>{v.name} · {v.lang}</option>) : <option>Browser default voice</option>}</select></label>
-                  <label><span>Speed <b>{tts.rate.toFixed(2)}×</b></span><input type="range" min="0.55" max="1.3" step="0.05" value={tts.rate} onChange={e => tts.setRate(Number(e.target.value))}/></label>
-                  <label><span>Pitch <b>{tts.pitch.toFixed(2)}</b></span><input type="range" min="0.7" max="1.3" step="0.05" value={tts.pitch} onChange={e => tts.setPitch(Number(e.target.value))}/></label>
-                </div>
-                <div className="voice-note"><span>{selectedVoice ? `${selectedVoice.name} · ${selectedVoice.lang}` : "Default system voice"}</span><span>{selectedVoice?.localService ? "Local voice" : "Browser/online voice"}</span></div>
-              </motion.div>}
-            </AnimatePresence>
-
-            <div className="editor-grid">
-              <div className="field-group">
-                <label>{mode === "recitation" ? "Scripture reference" : "Category / label"}</label>
-                <input className="input" value={current.reference} onChange={(e) => mode === "recitation" ? setRecitation(v => ({...v, reference:e.target.value, sourceId: undefined})) : setSpelling(v => ({...v, reference:e.target.value, sourceId: undefined}))}/>
-              </div>
-              <div className="field-group wide">
-                <label>{mode === "recitation" ? "Expected KJV text" : "Expected word"}</label>
-                {mode === "recitation" ? <textarea className="input expected-input" rows={5} value={current.expected} onChange={(e) => setRecitation(v => ({...v, expected:e.target.value, sourceId: undefined}))}/> : <div className="spelling-entry"><input className="input word-input" value={current.expected} onChange={(e) => setSpelling(v => ({...v, expected:e.target.value, sourceId: undefined}))}/><button className="btn pronounce" disabled={!current.expected.trim() || tts.speaking} onClick={() => tts.speak(current.expected)}>{tts.speaking ? <AudioLines size={16}/> : <Volume2 size={16}/>} {tts.speaking ? "Speaking…" : "Pronounce"}</button>{tts.speaking && <button className="icon-btn" onClick={tts.stop} title="Stop pronunciation"><X size={16}/></button>}</div>}
-              </div>
-            </div>
-            <div className="editor-actions-inline"><span>{current.sourceId ? "Loaded from your catalogue" : "This session has unsaved changes"}</span><button className="btn text-btn" onClick={editCurrent}><Pencil size={15}/> {current.sourceId ? "Edit catalogue item" : "Save to catalogue"}</button></div>
-
-            {speech.error && <div className="notice">Recognition notice: <strong>{speech.error}</strong>. Check microphone permission and try again.</div>}
-
-            <div className="recognition-stage">
-              <div className="stage-head"><span>Stabilised live transcript</span><small>{speech.listening ? `Streaming · ${speech.interim ? "interim result active" : "waiting for next phrase"}` : "Waiting for speech"}</small></div>
-              <div className={`transcript ${!combined ? "empty" : ""}`}>{combined ? <><span>{speech.finalText}</span>{speech.interim && <span className="interim-text"> {speech.interim}</span>}</> : "Recognised speech will appear here as the participant speaks…"}</div>
-            </div>
-
-            <div className="tracker-block">
-              <div className="stage-head"><span>Intelligent sequence tracker</span><small><b className="legend correct-dot"/> matched <b className="legend wrong-dot"/> missed / wrong <b className="legend pending-dot"/> not reached</small></div>
-              <div className={`tracker ${mode === "spelling" ? "letters" : ""}`}>
-                {tokens.map((t, i) => <motion.span layout initial={{opacity:0,scale:.94}} animate={{opacity:1,scale:1}} transition={{duration:.16}} key={`${t.expected}-${i}`} className={`token ${t.status}`} title={t.actual ? `Heard: ${t.actual}` : "Not reached yet"}>{t.expected}</motion.span>)}
-              </div>
+        <main className="v5-studio">
+          <section className="studio-heading">
+            <div><span className="studio-kicker"><Sparkles size={13}/> Twelve Tribes vocal operations</span><h1>{mode === "recitation" ? "Bible Recitation" : "Spelling Bee"}</h1><p>{mode === "recitation" ? "Sequence-aware live tracking that tolerates stutters, repetitions and verse transitions." : "Letter-by-letter competition tracking with corrections and repeat handling."}</p></div>
+            <div className="session-actions">
+              <button className="v5-btn ghost" onClick={resetSession}><RotateCcw size={15}/> Reset</button>
+              <button className="v5-btn ghost" onClick={nextParticipant}><UserRoundPlus size={15}/> Turn {turn + 1}</button>
+              <button className={`v5-btn ${speech.listening ? "danger" : "primary"}`} disabled={!speech.supported || speech.connecting} onClick={speech.listening ? speech.stop : speech.start}>{speech.listening?<MicOff size={16}/>:<Mic size={16}/>} {speech.connecting?"Connecting…":speech.listening?"Stop":"Start listening"}</button>
             </div>
           </section>
-        </section>
-      </main>
+
+          <section className="live-stage-card">
+            <div className="live-stage-top">
+              <div className="stage-identity"><span className="stage-icon"><Waves size={18}/></span><div><small>LIVE RECOGNITION</small><strong>{current.reference || "Select content from the library"}</strong></div></div>
+              <div className="stage-state"><i className={speech.listening?"live":""}/>{speech.listening?"Streaming":completion===100?"Complete":"Ready"}</div>
+            </div>
+
+            <div className="score-strip">
+              <div><span>Accuracy</span><strong>{score}%</strong><small>{score>=95?"Strong match":score?"Live score":"Awaiting speech"}</small></div>
+              <div><span>Progress</span><strong>{completion}%</strong><small>{intelligence.metrics.currentVerse?`Verse ${intelligence.metrics.currentVerse}`:"Sequence position"}</small></div>
+              <div><span>Commit settle</span><strong>{speech.latencyMs!=null?`${speech.latencyMs}ms`:"—"}</strong><small>Last partial → committed</small></div>
+              <div><span>Turn</span><strong>#{turn}</strong><small>{intelligence.metrics.recoveries} recoveries</small></div>
+            </div>
+
+            <div className="content-config-row">
+              <label><span>{mode === "recitation" ? "Scripture reference" : "Category"}</span><input value={current.reference} onChange={e=>mode==="recitation"?setRecitation(v=>({...v,reference:e.target.value,sourceId:undefined})):setSpelling(v=>({...v,reference:e.target.value,sourceId:undefined}))}/></label>
+              <div className="config-actions"><button className="text-action" onClick={editCurrent}><Pencil size={14}/>{current.sourceId?"Edit library item":"Save to library"}</button>{mode==="spelling"&&<button className="text-action" onClick={()=>setVoiceOpen(v=>!v)}><Headphones size={14}/>Voice settings</button>}</div>
+            </div>
+
+            {mode === "recitation" ? <textarea className="expected-v5" rows={4} value={current.expected} onChange={e=>setRecitation(v=>({...v,expected:e.target.value,sourceId:undefined}))}/> : <div className="spelling-word-row"><input className="expected-v5 word" value={current.expected} onChange={e=>setSpelling(v=>({...v,expected:e.target.value,sourceId:undefined}))}/><button className="v5-btn voice" disabled={!current.expected.trim()||tts.speaking} onClick={()=>tts.speak(current.expected)}><Volume2 size={16}/>{tts.speaking?"Generating…":"Pronounce"}</button>{tts.speaking&&<button className="v5-icon" onClick={tts.stop}><X size={15}/></button>}</div>}
+
+            <AnimatePresence>{mode==="spelling"&&voiceOpen&&<motion.div className="voice-popover" initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}}>
+              <div><span>ElevenLabs voice</span><select value={tts.voiceId} onChange={e=>tts.setVoiceId(e.target.value)}>{tts.voices.map(v=><option key={v.voice_id} value={v.voice_id}>{v.name}{v.labels?.accent?` · ${v.labels.accent}`:""}</option>)}</select></div>
+              <label><span>Speed <b>{tts.speed.toFixed(2)}×</b></span><input type="range" min="0.7" max="1.2" step="0.05" value={tts.speed} onChange={e=>tts.setSpeed(Number(e.target.value))}/></label>
+              <small>{tts.limitedVoices?"Free-tier voice listing is limited; using available default voices.":"Voices loaded from your ElevenLabs workspace."}</small>
+            </motion.div>}</AnimatePresence>
+
+            {(speech.error || tts.error) && <div className="v5-notice">{speech.error || tts.error}</div>}
+
+            <div className="transcript-area">
+              <div className="area-head"><span>Live transcript</span><small>{speech.listening?"Scribe v2 Realtime · partial + committed":"Standing by"}</small></div>
+              <div className={`transcript-v5 ${!combined?"empty":""}`}>{combined?<><span>{speech.finalText}</span>{speech.interim&&<mark> {speech.interim}</mark>}</>:"The participant transcript will flow here in real time…"}</div>
+            </div>
+
+            <div className="tracker-area">
+              <div className="area-head"><span>Sequence intelligence</span><small>{intelligence.metrics.ignoredRepetitions} repeats ignored · {intelligence.metrics.skippedWords} skipped · {intelligence.metrics.ignoredNoise} noise/filler ignored</small></div>
+              <div className={`tracker tracker-v5 ${mode==="spelling"?"letters":""}`}>{tokens.map((t,i)=><motion.span layout key={`${t.expected}-${i}`} className={`token ${t.status}`} title={t.actual?`Heard: ${t.actual}`:"Not reached"}>{t.expected}</motion.span>)}</div>
+            </div>
+          </section>
+        </main>
+
+        <aside className={`v5-insights ${insightsOpen?"":"closed"}`}>
+          <div className="insights-head"><div><BarChart3 size={16}/>{insightsOpen&&<strong>Engine monitor</strong>}</div><button onClick={()=>setInsightsOpen(v=>!v)}>{insightsOpen?<ChevronRight size={16}/>:<ChevronLeft size={16}/>}</button></div>
+          {insightsOpen&&<>
+            <section className="engine-card eleven"><div className="engine-card-head"><span><AudioLines size={16}/> ElevenLabs</span><button onClick={usage.refresh} title="Refresh"><RefreshCw size={14}/></button></div><strong>Scribe v2 Realtime</strong><p>Primary speech engine</p><div className="engine-health"><i className={speech.listening?"live":""}/>{speech.listening?"Connected":"Ready to connect"}</div></section>
+            <section className="usage-card"><div className="usage-title"><span>API usage</span><b>{usage.data?.tier?.toUpperCase()||"—"}</b></div>{usage.loading?<div className="metric-skeleton"/>:usage.error?<div className="usage-error"><strong>Usage metrics unavailable</strong><span>{usage.error}</span>{usage.error.toLowerCase().includes("user_read")&&<small>Edit the TribeVox API key in ElevenLabs and enable User → Read permission. Speech can continue without this permission; only the monitoring card is affected.</small>}</div>:<><div className="usage-big"><strong>{usage.data?.remaining.toLocaleString()}</strong><span>credits remaining</span></div><div className="usage-meter"><i style={{width:`${usage.data?.percentUsed||0}%`}}/></div><div className="usage-grid"><div><span>Used</span><b>{usage.data?.used.toLocaleString()}</b></div><div><span>Limit</span><b>{usage.data?.limit.toLocaleString()}</b></div><div><span>Reset</span><b>{usageReset}</b></div><div><span>Status</span><b>{usage.data?.status||"—"}</b></div></div></>}</section>
+            <section className="intel-card"><span className="side-caption">Recognition intelligence</span><div><ShieldCheck size={15}/><span>Stutters ignored</span><b>{intelligence.metrics.ignoredRepetitions}</b></div><div><Activity size={15}/><span>Recoveries</span><b>{intelligence.metrics.recoveries}</b></div><div><Gauge size={15}/><span>Skipped words</span><b>{intelligence.metrics.skippedWords}</b></div><div><CircleHelp size={15}/><span>Noise/filler</span><b>{intelligence.metrics.ignoredNoise}</b></div></section>
+            <section className="noise-card"><ShieldCheck size={16}/><div><strong>Noise guard active</strong><p>Echo cancellation, browser noise suppression and AGC are requested on the Scribe microphone stream.</p></div></section>
+          </>}
+        </aside>
+      </div>
 
       <AnimatePresence>{editor && <CatalogueEditor editor={editor} words={catalogue.words} scriptures={catalogue.scriptures} onClose={() => setEditor(null)} onSave={(payload) => {
-        if (editor.mode === "spelling") {
-          const p = payload as Omit<WordItem,"id">;
-          if (editor.kind === "edit" && editor.id) { catalogue.updateWord(editor.id, p); chooseWord({ id: editor.id, ...p }); }
-          else { const added = catalogue.addWord(p); chooseWord(added); }
-        } else {
-          const p = payload as Omit<ScriptureItem,"id">;
-          if (editor.kind === "edit" && editor.id) { catalogue.updateScripture(editor.id, p); chooseScripture({ id: editor.id, ...p }); }
-          else { const added = catalogue.addScripture(p); chooseScripture(added); }
-        }
+        if (editor.mode === "spelling") { const p = payload as Omit<WordItem,"id">; if (editor.kind === "edit" && editor.id) { catalogue.updateWord(editor.id,p); chooseWord({id:editor.id,...p}); } else chooseWord(catalogue.addWord(p)); }
+        else { const p = payload as Omit<ScriptureItem,"id">; if (editor.kind === "edit" && editor.id) { catalogue.updateScripture(editor.id,p); chooseScripture({id:editor.id,...p}); } else chooseScripture(catalogue.addScripture(p)); }
         setEditor(null);
       }}/>}</AnimatePresence>
     </div>

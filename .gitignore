@@ -25,3 +25,5 @@ yarn-error.log*
 src/modules/Home/styles.module.css
 Virtual-Medical-Consultation-FrontEnd.zip
 TTGames-Live-Speech-Utility-v1.zip
+.env.example
+TribeVox.zip
